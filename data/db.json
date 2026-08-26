@@ -1,0 +1,60 @@
+{
+  "members": [
+    {
+      "uid": "pi_seed_alice",
+      "username": "alice_dev",
+      "created_at": "2026-08-23T15:03:30.784Z",
+      "amount_paid": 0.001,
+      "txid": "pi_tx_seed_001"
+    },
+    {
+      "uid": "pi_seed_bob",
+      "username": "bob_designer",
+      "created_at": "2026-08-24T15:03:30.785Z",
+      "amount_paid": 0.001,
+      "txid": "pi_tx_seed_002"
+    },
+    {
+      "uid": "pi_seed_charlie",
+      "username": "charlie_crypto",
+      "created_at": "2026-08-25T15:03:30.785Z",
+      "amount_paid": 0.001,
+      "txid": "pi_tx_seed_003"
+    }
+  ],
+  "services": [
+    {
+      "id": 1,
+      "uid": "pi_seed_alice",
+      "username": "alice_dev",
+      "title": "Développeur Web Fullstack & Intégration Pi SDK",
+      "description": "Création d'applications complètes compatibles Pi Browser, intégration des paiements Pi (SDK v2), smart flows et bases de données rapides.",
+      "contact": "https://t.me/alice_pioneer",
+      "category": "Développement Web",
+      "price_pi": "50 π / projet",
+      "created_at": "2026-08-23T15:03:30.785Z"
+    },
+    {
+      "id": 2,
+      "uid": "pi_seed_bob",
+      "username": "bob_designer",
+      "title": "Designer UI/UX & Logos pour Projets Écosystème Pi",
+      "description": "Conception de chartes graphiques modernes, maquettes Figma adaptées mobile/desktop, bannières publicitaires et logos personnalisés.",
+      "contact": "whatsapp:+33612345678",
+      "category": "Design & Graphisme",
+      "price_pi": "25 π / charte",
+      "created_at": "2026-08-24T15:03:30.785Z"
+    },
+    {
+      "id": 3,
+      "uid": "pi_seed_charlie",
+      "username": "charlie_crypto",
+      "title": "Traduction & Localisation d'Apps (FR / EN / ES)",
+      "description": "Traduction professionnelle de vos applications et annonces pour toucher la communauté mondiale des Pioneers de Pi Network.",
+      "contact": "https://t.me/charlie_pi_trans",
+      "category": "Traduction & Rédaction",
+      "price_pi": "10 π / 1000 mots",
+      "created_at": "2026-08-25T15:03:30.785Z"
+    }
+  ]
+}
