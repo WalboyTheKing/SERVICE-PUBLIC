@@ -5,6 +5,7 @@ import { PiProvider } from '@/components/PiProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { CartProvider } from '@/components/CartProvider';
 import { FavoritesProvider } from '@/components/FavoritesProvider';
+import { RequirePiAuth } from '@/components/RequirePiAuth';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 
@@ -29,11 +30,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PiProvider>
             <CartProvider>
               <FavoritesProvider>
-                <Navbar />
-                <main className="flex-1 flex flex-col">
-                  {children}
-                </main>
-                <Footer />
+                <RequirePiAuth>
+                  <Navbar />
+                  <main className="flex-1 flex flex-col">
+                    {children}
+                  </main>
+                  <Footer />
+                </RequirePiAuth>
               </FavoritesProvider>
             </CartProvider>
           </PiProvider>
@@ -42,3 +45,4 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     </html>
   );
 }
+

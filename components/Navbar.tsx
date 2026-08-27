@@ -200,7 +200,10 @@ export const Navbar = () => {
 
             {/* User Account / Auth */}
             {loading ? (
-              <div className="h-9 w-24 bg-purple-900/70 animate-pulse rounded-xl" />
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-900/80 border border-purple-800 text-xs font-semibold text-amber-300 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                <span>Connexion Pi...</span>
+              </div>
             ) : user ? (
               <div className="relative">
                 <button
@@ -247,6 +250,24 @@ export const Navbar = () => {
                     >
                       <Package className="w-4 h-4 text-purple-700" />
                       <span>Mes Commandes</span>
+                    </Link>
+
+                    <Link
+                      href="/favorites"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-900 transition"
+                    >
+                      <Heart className="w-4 h-4 text-rose-500" />
+                      <span>Favoris</span>
+                    </Link>
+
+                    <Link
+                      href="/cart"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-gray-700 hover:bg-purple-50 hover:text-purple-900 transition"
+                    >
+                      <ShoppingBag className="w-4 h-4 text-amber-600" />
+                      <span>Panier</span>
                     </Link>
 
                     {user.is_seller ? (
@@ -299,7 +320,7 @@ export const Navbar = () => {
                 className="bg-amber-400 hover:bg-amber-300 text-purple-950 font-bold px-4 py-2 rounded-xl text-xs shadow-xs transition active:scale-95 flex items-center gap-1.5"
               >
                 <User className="w-3.5 h-3.5" />
-                <span>Connexion</span>
+                <span>Se connecter</span>
               </button>
             )}
 
@@ -353,11 +374,35 @@ export const Navbar = () => {
                 <Package className="w-4 h-4 text-sky-400" />
                 <span>Mes Commandes</span>
               </Link>
+              <Link
+                href="/account"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 bg-purple-900/60 rounded-xl text-purple-100 flex items-center gap-2"
+              >
+                <User className="w-4 h-4 text-purple-300" />
+                <span>Mon Compte</span>
+              </Link>
+              <Link
+                href="/favorites"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 bg-purple-900/60 rounded-xl text-purple-100 flex items-center gap-2"
+              >
+                <Heart className="w-4 h-4 text-rose-400" />
+                <span>Favoris ({favoriteIds.length})</span>
+              </Link>
+              <Link
+                href="/cart"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-3 bg-purple-900/60 rounded-xl text-purple-100 flex items-center gap-2"
+              >
+                <ShoppingBag className="w-4 h-4 text-amber-400" />
+                <span>Panier ({totalItemsCount})</span>
+              </Link>
               {user?.is_seller ? (
                 <Link
                   href="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 bg-amber-400 text-purple-950 rounded-xl flex items-center gap-2 font-bold"
+                  className="col-span-2 p-3 bg-amber-400 text-purple-950 rounded-xl flex items-center justify-center gap-2 font-bold"
                 >
                   <LayoutDashboard className="w-4 h-4" />
                   <span>Dashboard Vendeur</span>
@@ -366,13 +411,28 @@ export const Navbar = () => {
                 <Link
                   href="/seller"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-3 bg-amber-400 text-purple-950 rounded-xl flex items-center gap-2 font-bold"
+                  className="col-span-2 p-3 bg-amber-400 text-purple-950 rounded-xl flex items-center justify-center gap-2 font-bold"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Devenir Vendeur</span>
+                  <span>Devenir Vendeur (0.01 π)</span>
                 </Link>
               )}
             </div>
+
+            {user && (
+              <div className="pt-2 border-t border-purple-900">
+                <button
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full p-2.5 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs font-semibold flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Se déconnecter</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </header>

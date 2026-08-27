@@ -1,12 +1,15 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { User } from '@/types/database';
 import { IS_SANDBOX } from '@/lib/constants';
 
-interface PiContextType {
+export type AuthStatus = 'initializing' | 'authenticating' | 'authenticated' | 'unauthenticated' | 'error';
+
+export interface PiContextType {
   user: User | null;
+  authStatus: AuthStatus;
   loading: boolean;
   error: string | null;
   isSandbox: boolean;
@@ -19,6 +22,7 @@ interface PiContextType {
 
 const PiContext = createContext<PiContextType>({
   user: null,
+  authStatus: 'initializing',
   loading: true,
   error: null,
   isSandbox: IS_SANDBOX,
@@ -33,36 +37,13 @@ const DEMO_USER_STORAGE_KEY = 'pimarket_auth_user';
 
 export const PiProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('initializing');
   const [error, setError] = useState<string | null>(null);
   const [sdkReady, setSdkReady] = useState<boolean>(false);
   const [isPiBrowser, setIsPiBrowser] = useState<boolean>(false);
 
-  // Check saved session in local storage first
-  useEffect(() => {
-    try {
-      const savedUser = localStorage.getItem(DEMO_USER_STORAGE_KEY);
-      if (savedUser) {
-        setUser(JSON.parse(savedUser));
-      }
-    } catch (e) {
-      console.warn(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const initPiSDK = () => {
-    if (typeof window !== 'undefined' && window.Pi) {
-      try {
-        window.Pi.init({ version: '2.0', sandbox: IS_SANDBOX });
-        setSdkReady(true);
-        setIsPiBrowser(true);
-      } catch (e) {
-        console.warn('Pi SDK Init error:', e);
-      }
-    }
-  };
+  // Ref to guarantee we only auto-attempt authentication ONCE per page load to prevent infinite loops
+  const hasAutoAttemptedRef = useRef<boolean>(false);
 
   const handleIncompletePayment = async (payment: any) => {
     try {
@@ -72,25 +53,41 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
         body: JSON.stringify({ payment }),
       });
     } catch (e) {
-      console.error('Erreur paiement incomplet:', e);
+      console.error('Erreur traitement paiement incomplet:', e);
     }
   };
+
+  const initPiSDK = useCallback(() => {
+    if (typeof window !== 'undefined' && window.Pi) {
+      try {
+        window.Pi.init({ version: '2.0', sandbox: IS_SANDBOX });
+        setSdkReady(true);
+        setIsPiBrowser(true);
+      } catch (e) {
+        console.warn('Pi SDK Init warning:', e);
+        setSdkReady(true);
+      }
+    }
+  }, []);
 
   const authenticate = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
+    setError(null);
+    setAuthStatus('authenticating');
+
     if (!window.Pi) {
-      // In normal browser outside Pi Browser
-      setError('Ouvrez l\'application dans Pi Browser ou utilisez le mode Test Sandbox.');
-      setLoading(false);
+      setError('Pi SDK non détecté. Ouvrez PiMarket dans Pi Browser sur mobile ou connectez-vous avec le mode Testnet Sandbox ci-dessous.');
+      setAuthStatus('unauthenticated');
       return;
     }
 
     try {
-      setLoading(true);
-      setError(null);
-
       const auth = await window.Pi.authenticate(['username', 'payments'], handleIncompletePayment);
+
+      if (!auth || !auth.user || !auth.user.username) {
+        throw new Error('Authentification Pi incomplète ou annulée.');
+      }
 
       const res = await fetch('/api/pi/authenticate', {
         method: 'POST',
@@ -99,20 +96,24 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Échec authentification');
-      
+      if (!res.ok || !data.user) {
+        throw new Error(data.error || 'Erreur lors de la synchronisation du compte Pi.');
+      }
+
       setUser(data.user);
       localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(data.user));
+      setAuthStatus('authenticated');
     } catch (err: any) {
-      setError(err.message || 'Authentification annulée');
-    } finally {
-      setLoading(false);
+      console.warn('Pi Auth Error:', err);
+      const msg = err.message || 'Authentification refusée ou annulée.';
+      setError(msg);
+      setAuthStatus('unauthenticated');
     }
   }, []);
 
   const simulateSandboxLogin = async (customUsername = 'Pioneer_Tester', asSeller = false) => {
     try {
-      setLoading(true);
+      setAuthStatus('authenticating');
       setError(null);
       const testUid = `pi-sandbox-${customUsername.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
 
@@ -130,6 +131,7 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
         }
         setUser(finalUser);
         localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(finalUser));
+        setAuthStatus('authenticated');
       } else {
         const fallbackUser: User = {
           id: `usr-${Date.now()}`,
@@ -142,11 +144,11 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
         };
         setUser(fallbackUser);
         localStorage.setItem(DEMO_USER_STORAGE_KEY, JSON.stringify(fallbackUser));
+        setAuthStatus('authenticated');
       }
     } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+      setError(e.message || 'Erreur lors de la connexion test.');
+      setAuthStatus('unauthenticated');
     }
   };
 
@@ -157,6 +159,10 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (e) {
       console.warn(e);
     }
+    // Prevent auto-auth from immediately running again after manual logout
+    hasAutoAttemptedRef.current = true;
+    setError(null);
+    setAuthStatus('unauthenticated');
   };
 
   const refetchUser = async () => {
@@ -178,16 +184,62 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // Step 1: Check localStorage on initial mount
   useEffect(() => {
-    if (sdkReady && !user) {
+    try {
+      const savedUser = localStorage.getItem(DEMO_USER_STORAGE_KEY);
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && parsed.username) {
+          setUser(parsed);
+          setAuthStatus('authenticated');
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage read error:', e);
+    }
+
+    // If no saved user, check if window.Pi is already available
+    if (typeof window !== 'undefined' && window.Pi) {
+      initPiSDK();
+    }
+  }, [initPiSDK]);
+
+  // Step 2: Once SDK is ready or if we are still initializing, attempt automatic authentication once
+  useEffect(() => {
+    if (authStatus === 'authenticated') return;
+
+    if (sdkReady && !hasAutoAttemptedRef.current) {
+      hasAutoAttemptedRef.current = true;
       authenticate();
     }
-  }, [sdkReady, authenticate, user]);
+  }, [sdkReady, authStatus, authenticate]);
+
+  // Step 3: Fallback timer to prevent getting stuck on 'initializing' if outside Pi Browser or script delayed
+  useEffect(() => {
+    if (authStatus === 'initializing') {
+      const timer = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.Pi && !hasAutoAttemptedRef.current) {
+          initPiSDK();
+          hasAutoAttemptedRef.current = true;
+          authenticate();
+        } else if (authStatus === 'initializing') {
+          setAuthStatus('unauthenticated');
+        }
+      }, 1200);
+
+      return () => clearTimeout(timer);
+    }
+  }, [authStatus, initPiSDK, authenticate]);
+
+  const loading = authStatus === 'initializing' || authStatus === 'authenticating';
 
   return (
     <PiContext.Provider
       value={{
         user,
+        authStatus,
         loading,
         error,
         isSandbox: IS_SANDBOX,
@@ -198,7 +250,11 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
         refetchUser,
       }}
     >
-      <Script src="https://sdk.minepi.com/pi-sdk.js" onLoad={initPiSDK} strategy="afterInteractive" />
+      <Script
+        src="https://sdk.minepi.com/pi-sdk.js"
+        onLoad={initPiSDK}
+        strategy="afterInteractive"
+      />
       {children}
     </PiContext.Provider>
   );
