@@ -1,11 +1,9 @@
--- ====================================================================
--- PiMarket Database Schema - Production Ready & Scalable
--- Next.js 14 + Supabase + Pi Network SDK v2.0
--- ====================================================================
+-- PiMarket Migration 20240101_init_all.sql
+-- Run this in Supabase SQL editor to create or update all tables
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. USERS TABLE
+-- Users
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pi_uid TEXT UNIQUE NOT NULL,
@@ -17,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 2. PRODUCTS TABLE
+-- Products
 CREATE TABLE IF NOT EXISTS public.products (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   seller_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -35,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 3. PAYMENTS TABLE
+-- Payments
 CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pi_payment_id TEXT UNIQUE NOT NULL,
@@ -50,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.payments (
   completed_at TIMESTAMPTZ
 );
 
--- 4. ORDERS TABLE
+-- Orders
 CREATE TABLE IF NOT EXISTS public.orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number TEXT UNIQUE NOT NULL,
@@ -69,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
--- 5. FAVORITES TABLE
+-- Favorites
 CREATE TABLE IF NOT EXISTS public.favorites (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -77,53 +75,3 @@ CREATE TABLE IF NOT EXISTS public.favorites (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE(user_id, product_id)
 );
-
--- ====================================================================
--- INDEXES FOR MAXIMUM QUERY PERFORMANCE
--- ====================================================================
-CREATE INDEX IF NOT EXISTS idx_users_pi_uid ON public.users(pi_uid);
-CREATE INDEX IF NOT EXISTS idx_products_seller ON public.products(seller_id);
-CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category);
-CREATE INDEX IF NOT EXISTS idx_products_status ON public.products(status);
-CREATE INDEX IF NOT EXISTS idx_products_price ON public.products(price_pi);
-CREATE INDEX IF NOT EXISTS idx_products_created_at ON public.products(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_payments_pi_payment_id ON public.payments(pi_payment_id);
-CREATE INDEX IF NOT EXISTS idx_payments_user ON public.payments(user_id);
-CREATE INDEX IF NOT EXISTS idx_orders_buyer ON public.orders(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_orders_seller ON public.orders(seller_id);
-CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
-CREATE INDEX IF NOT EXISTS idx_favorites_user ON public.favorites(user_id);
-
--- ====================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
--- ====================================================================
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
-
--- Products: Anyone can read active products, sellers can read/manage their own products
-CREATE POLICY "Public can view active products" 
-  ON public.products FOR SELECT 
-  USING (status = 'active');
-
-CREATE POLICY "Public can view all user profiles" 
-  ON public.users FOR SELECT 
-  USING (true);
-
-CREATE POLICY "Public can read order details if related" 
-  ON public.orders FOR SELECT 
-  USING (true);
-
-CREATE POLICY "Public can read favorites" 
-  ON public.favorites FOR SELECT 
-  USING (true);
-
-CREATE POLICY "Public can insert favorites" 
-  ON public.favorites FOR INSERT 
-  WITH CHECK (true);
-
-CREATE POLICY "Public can delete favorites" 
-  ON public.favorites FOR DELETE 
-  USING (true);

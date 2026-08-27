@@ -4,7 +4,11 @@ export interface PiPaymentDTO {
   amount: number;
   memo: string;
   metadata: {
-    type: 'seller_registration' | 'product_publication' | 'product_purchase';
+    type: 'seller_registration' | 'product_publication' | 'product_purchase' | 'cart_checkout';
+    product_id?: string;
+    order_id?: string;
+    shipping_address?: string;
+    contact_info?: string;
     product_data?: {
       title: string;
       description: string;
