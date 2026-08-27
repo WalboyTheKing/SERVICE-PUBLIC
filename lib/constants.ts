@@ -35,6 +35,6 @@ export const CATEGORY_ICONS: Record<ProductCategory, string> = {
   'Autres': 'Package',
 };
 
-export const IS_SANDBOX = process.env.NEXT_PUBLIC_PI_SANDBOX === 'true' || process.env.NEXT_PUBLIC_PI_SANDBOX === undefined;
+export const IS_SANDBOX = process.env.NEXT_PUBLIC_PI_SANDBOX === 'true';
 export const SITE_NAME = 'PiMarket';
 export const SITE_DESCRIPTION = 'La marketplace publique moderne pour acheter et vendre avec Pi Network';

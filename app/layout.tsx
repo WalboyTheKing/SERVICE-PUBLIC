@@ -25,6 +25,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="scroll-smooth">
+      <head>
+        <script src="https://sdk.minepi.com/pi-sdk.js" async={false}></script>
+      </head>
       <body className={`${inter.className} bg-slate-50 min-h-screen flex flex-col text-slate-900 antialiased`}>
         <ToastProvider>
           <PiProvider>
