@@ -27,16 +27,20 @@ export default function SellerPage() {
         setError(null);
         setStatusMessage('Initialisation du paiement Pi Network (0.01 π)...');
 
+        console.log('[PI PAYMENT] createPayment initiated for seller_registration (0.01 π)');
+
         const paymentData = {
           amount: PI_PRICING.SELLER_REGISTRATION,
           memo: 'Inscription Vendeur - PiMarket',
           metadata: {
             type: 'seller_registration' as const,
+            username: user.username,
           },
         };
 
         const callbacks = {
           onReadyForServerApproval: async (paymentId: string) => {
+            console.log('[PI PAYMENT] onReadyForServerApproval received paymentId:', paymentId);
             setStatusMessage('Approbation du paiement par le serveur...');
             const res = await fetch('/api/pi/approve', {
               method: 'POST',
@@ -44,9 +48,14 @@ export default function SellerPage() {
               body: JSON.stringify({ paymentId }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec approbation');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Approval error:', data.error);
+              throw new Error(data.error || 'Échec de l\'approbation serveur');
+            }
+            console.log('[PI PAYMENT] Server approval confirmed for paymentId:', paymentId);
           },
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            console.log('[PI PAYMENT] onReadyForServerCompletion received. paymentId:', paymentId, 'txid:', txid);
             setStatusMessage('Validation finale de la transaction blockchain...');
             const res = await fetch('/api/pi/complete', {
               method: 'POST',
@@ -54,7 +63,11 @@ export default function SellerPage() {
               body: JSON.stringify({ paymentId, txid }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec complétion');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Completion error:', data.error);
+              throw new Error(data.error || 'Échec de la complétion serveur');
+            }
+            console.log('[PI PAYMENT] final status: COMPLETED for seller registration');
             setStatusMessage('Félicitations ! Vous êtes désormais vendeur officiel.');
             showToast('Statut vendeur activé avec succès !', 'success');
             await refetchUser();
@@ -62,12 +75,14 @@ export default function SellerPage() {
               router.push('/dashboard');
             }, 1200);
           },
-          onCancel: () => {
+          onCancel: (paymentId?: string) => {
+            console.log('[PI PAYMENT] Payment cancelled by user:', paymentId);
             setProcessing(false);
             setStatusMessage(null);
-            setError('Paiement annulé.');
+            setError('Paiement annulé par l\'utilisateur.');
           },
           onError: (err: Error) => {
+            console.error('[PI PAYMENT] Payment error callback:', err);
             setProcessing(false);
             setStatusMessage(null);
             setError(err.message || 'Une erreur est survenue lors du paiement.');
@@ -76,12 +91,13 @@ export default function SellerPage() {
 
         window.Pi.createPayment(paymentData, callbacks);
       } catch (err: any) {
+        console.error('[PI PAYMENT] Unexpected createPayment error:', err);
         setProcessing(false);
         setStatusMessage(null);
-        setError(err.message || 'Erreur inattendue.');
+        setError(err.message || 'Erreur inattendue lors du paiement.');
       }
     } else {
-      // Sandbox mode / Standard browser simulation
+      // Standard browser simulation for dev/sandbox preview
       try {
         setProcessing(true);
         setError(null);

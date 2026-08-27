@@ -52,12 +52,15 @@ export default function CartPage() {
         setCheckingOut(true);
         setError(null);
 
+        console.log(`[PI PAYMENT] createPayment initiated for cart_checkout (${totalAmountPi} π, ${totalItemsCount} items)`);
+
         const paymentData = {
           amount: totalAmountPi,
           memo: `Commande PiMarket (${totalItemsCount} art.)`,
           metadata: {
             type: 'cart_checkout' as const,
-            product_id: cart[0].product.id,
+            username: user.username,
+            product_id: cart[0]?.product?.id,
             shipping_address: `${fullName} - ${shippingAddress} (Tél: ${phone})`,
             contact_info: `@${user.username} - ${phone}`,
           },
@@ -65,33 +68,45 @@ export default function CartPage() {
 
         const callbacks = {
           onReadyForServerApproval: async (paymentId: string) => {
+            console.log('[PI PAYMENT] onReadyForServerApproval received paymentId:', paymentId);
             const res = await fetch('/api/pi/approve', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paymentId }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec approbation');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Cart approval error:', data.error);
+              throw new Error(data.error || 'Échec de l\'approbation serveur');
+            }
+            console.log('[PI PAYMENT] Server approval confirmed for paymentId:', paymentId);
           },
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            console.log('[PI PAYMENT] onReadyForServerCompletion received. paymentId:', paymentId, 'txid:', txid);
             const res = await fetch('/api/pi/complete', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ paymentId, txid }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec complétion');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Cart completion error:', data.error);
+              throw new Error(data.error || 'Échec de la complétion serveur');
+            }
             
+            console.log('[PI PAYMENT] final status: COMPLETED for cart purchase');
             clearCart();
             showToast('Paiement réussi ! Votre commande a été transmise aux vendeurs.', 'success');
             setCheckingOut(false);
             router.push('/orders');
           },
-          onCancel: () => {
+          onCancel: (paymentId?: string) => {
+            console.log('[PI PAYMENT] Cart payment cancelled by user:', paymentId);
             setCheckingOut(false);
-            setError('Paiement annulé.');
+            setError('Paiement annulé par l\'utilisateur.');
           },
           onError: (err: Error) => {
+            console.error('[PI PAYMENT] Cart payment error callback:', err);
             setCheckingOut(false);
             setError(err.message || 'Erreur lors du paiement.');
           },
@@ -99,8 +114,9 @@ export default function CartPage() {
 
         window.Pi.createPayment(paymentData, callbacks);
       } catch (err: any) {
+        console.error('[PI PAYMENT] Unexpected cart payment error:', err);
         setCheckingOut(false);
-        setError(err.message || 'Erreur inattendue.');
+        setError(err.message || 'Erreur inattendue lors du paiement.');
       }
     } else {
       // Direct Simulation checkout in Sandbox testnet

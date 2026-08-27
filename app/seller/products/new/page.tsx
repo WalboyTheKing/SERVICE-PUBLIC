@@ -81,17 +81,21 @@ export default function NewProductPage() {
           stock: parsedStock,
         };
 
+        console.log(`[PI PAYMENT] createPayment initiated for product_publication (${PI_PRICING.PRODUCT_PUBLICATION} π)`);
+
         const paymentData = {
           amount: PI_PRICING.PRODUCT_PUBLICATION,
           memo: `Publication: ${title.substring(0, 20)}`,
           metadata: {
             type: 'product_publication' as const,
+            username: user.username,
             product_data: productPayload,
           },
         };
 
         const callbacks = {
           onReadyForServerApproval: async (paymentId: string) => {
+            console.log('[PI PAYMENT] onReadyForServerApproval received paymentId:', paymentId);
             setStatusMessage('Approbation serveur...');
             const res = await fetch('/api/pi/approve', {
               method: 'POST',
@@ -99,9 +103,14 @@ export default function NewProductPage() {
               body: JSON.stringify({ paymentId }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec approbation');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Publish approval error:', data.error);
+              throw new Error(data.error || 'Échec approbation');
+            }
+            console.log('[PI PAYMENT] Server approval confirmed for paymentId:', paymentId);
           },
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            console.log('[PI PAYMENT] onReadyForServerCompletion received. paymentId:', paymentId, 'txid:', txid);
             setStatusMessage('Enregistrement du produit...');
             const res = await fetch('/api/pi/complete', {
               method: 'POST',
@@ -109,17 +118,23 @@ export default function NewProductPage() {
               body: JSON.stringify({ paymentId, txid }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec complétion');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Publish completion error:', data.error);
+              throw new Error(data.error || 'Échec complétion');
+            }
 
+            console.log('[PI PAYMENT] final status: COMPLETED for product publication');
             showToast('Produit publié avec succès !', 'success');
             router.push('/dashboard');
           },
-          onCancel: () => {
+          onCancel: (paymentId?: string) => {
+            console.log('[PI PAYMENT] Publication payment cancelled by user:', paymentId);
             setSubmitting(false);
             setStatusMessage(null);
-            setError('Publication annulée.');
+            setError('Publication annulée par l\'utilisateur.');
           },
           onError: (err: Error) => {
+            console.error('[PI PAYMENT] Publication payment error callback:', err);
             setSubmitting(false);
             setStatusMessage(null);
             setError(err.message || 'Erreur paiement.');
@@ -128,6 +143,7 @@ export default function NewProductPage() {
 
         window.Pi.createPayment(paymentData, callbacks);
       } catch (err: any) {
+        console.error('[PI PAYMENT] Unexpected publish payment error:', err);
         setSubmitting(false);
         setStatusMessage(null);
         setError(err.message || 'Erreur inattendue.');

@@ -110,11 +110,14 @@ export default function ProductDetailPage() {
         setError(null);
         setStatusMessage('Initialisation de la transaction Pi Network...');
 
+        console.log(`[PI PAYMENT] createPayment initiated for product_purchase (${product.price_pi} π, id=${product.id})`);
+
         const paymentData = {
           amount: product.price_pi,
           memo: `Achat PiMarket: ${product.title.substring(0, 20)}`,
           metadata: {
             type: 'product_purchase' as const,
+            username: user.username,
             product_id: product.id,
             shipping_address: shippingAddress || 'Non spécifiée',
             contact_info: contactInfo || `@${user.username}`,
@@ -123,6 +126,7 @@ export default function ProductDetailPage() {
 
         const callbacks = {
           onReadyForServerApproval: async (paymentId: string) => {
+            console.log('[PI PAYMENT] onReadyForServerApproval received paymentId:', paymentId);
             setStatusMessage('Vérification et approbation serveur...');
             const res = await fetch('/api/pi/approve', {
               method: 'POST',
@@ -130,9 +134,14 @@ export default function ProductDetailPage() {
               body: JSON.stringify({ paymentId }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec approbation');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Product buy approval error:', data.error);
+              throw new Error(data.error || 'Échec de l\'approbation serveur');
+            }
+            console.log('[PI PAYMENT] Server approval confirmed for paymentId:', paymentId);
           },
           onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            console.log('[PI PAYMENT] onReadyForServerCompletion received. paymentId:', paymentId, 'txid:', txid);
             setStatusMessage('Enregistrement et complétion de la commande...');
             const res = await fetch('/api/pi/complete', {
               method: 'POST',
@@ -140,7 +149,11 @@ export default function ProductDetailPage() {
               body: JSON.stringify({ paymentId, txid }),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Échec complétion');
+            if (!res.ok || data.error) {
+              console.error('[PI PAYMENT] Product buy completion error:', data.error);
+              throw new Error(data.error || 'Échec de la complétion serveur');
+            }
+            console.log('[PI PAYMENT] final status: COMPLETED for single product purchase');
             setStatusMessage('Paiement Pi confirmé avec succès !');
             showToast('Votre commande a été enregistrée avec succès !', 'success');
             setPurchasing(false);
@@ -150,12 +163,14 @@ export default function ProductDetailPage() {
               router.push('/orders');
             }
           },
-          onCancel: () => {
+          onCancel: (paymentId?: string) => {
+            console.log('[PI PAYMENT] Product payment cancelled by user:', paymentId);
             setPurchasing(false);
             setStatusMessage(null);
             setError('Transaction Pi annulée par l\'utilisateur.');
           },
           onError: (err: Error) => {
+            console.error('[PI PAYMENT] Product payment error callback:', err);
             setPurchasing(false);
             setStatusMessage(null);
             setError(err.message || 'Erreur lors du règlement Pi.');
@@ -164,6 +179,7 @@ export default function ProductDetailPage() {
 
         window.Pi.createPayment(paymentData, callbacks);
       } catch (err: any) {
+        console.error('[PI PAYMENT] Unexpected product buy error:', err);
         setPurchasing(false);
         setStatusMessage(null);
         setError(err.message || 'Erreur inattendue.');
