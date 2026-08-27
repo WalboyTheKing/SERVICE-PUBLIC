@@ -1,6 +1,0 @@
-{
-  "name": "Pi Market",
-  "description": "Marché décentralisé de produits et services pour Pi Browser avec activation vendeur (0.0001 Pi), frais de publication (0.00001 Pi), modération et paiements Pi SDK v2.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
