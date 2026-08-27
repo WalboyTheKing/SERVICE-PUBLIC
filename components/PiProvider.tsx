@@ -80,61 +80,29 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     lastAttemptTime: null,
   });
 
-  // Strict refs to prevent double-calls, concurrent execution, or infinite loops
+  // Strict execution locks
   const isAuthenticatingRef = useRef<boolean>(false);
   const hasInitializedRef = useRef<boolean>(false);
   const hasAutoAttemptedRef = useRef<boolean>(false);
 
   const handleIncompletePayment = useCallback(async (payment: any) => {
     try {
-      console.log('Traitement paiement incomplet trouvé:', payment);
+      console.log('[Pi SDK] Traitement paiement incomplet détecté:', payment);
       await fetch('/api/pi/incomplete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payment }),
       });
     } catch (e) {
-      console.error('Erreur traitement paiement incomplet:', e);
+      console.error('[Pi SDK] Erreur traitement paiement incomplet:', e);
     }
-  }, []);
-
-  // Safe Pi SDK initialization
-  const initPi = useCallback(() => {
-    if (typeof window === 'undefined' || !window.Pi) return false;
-
-    if (!hasInitializedRef.current) {
-      try {
-        console.log('[Pi SDK] Initialisation en cours...', { version: '2.0', sandbox: IS_SANDBOX });
-        window.Pi.init({ version: '2.0', sandbox: IS_SANDBOX });
-        hasInitializedRef.current = true;
-        setDiagnostics((prev) => ({
-          ...prev,
-          sdkDetected: true,
-          initStatus: 'OK',
-        }));
-        console.log('[Pi SDK] Initialisation réussie !');
-        return true;
-      } catch (e: any) {
-        console.error('[Pi SDK] Erreur lors de Pi.init():', e);
-        hasInitializedRef.current = true; // prevent crash looping
-        setDiagnostics((prev) => ({
-          ...prev,
-          sdkDetected: true,
-          initStatus: 'ERROR',
-          errorMessage: e?.message || 'Erreur Pi.init',
-        }));
-        return true;
-      }
-    }
-    return true;
   }, []);
 
   const authenticate = useCallback(async () => {
     if (typeof window === 'undefined') return;
 
-    // Prevent concurrent executions
     if (isAuthenticatingRef.current) {
-      console.log('[Pi SDK] Authentification déjà en cours, appel ignoré.');
+      console.log('[Pi SDK] Authentification déjà en cours.');
       return;
     }
 
@@ -151,7 +119,7 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     }));
 
     if (!window.Pi) {
-      const errMsg = "Pi SDK non disponible. Veuillez ouvrir cette application dans Pi Browser.";
+      const errMsg = "Pi SDK non disponible. Veuillez ouvrir cette application dans l'application officielle Pi Browser.";
       console.warn('[Pi SDK]', errMsg);
       setError(errMsg);
       setAuthStatus('SDK_UNAVAILABLE');
@@ -165,11 +133,21 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    // Ensure SDK is initialized
-    initPi();
+    // Ensure Pi.init is called
+    if (!hasInitializedRef.current) {
+      try {
+        console.log('[Pi SDK] Initialisation window.Pi.init...', { version: '2.0', sandbox: IS_SANDBOX });
+        window.Pi.init({ version: '2.0', sandbox: IS_SANDBOX });
+        hasInitializedRef.current = true;
+        setDiagnostics((prev) => ({ ...prev, sdkDetected: true, initStatus: 'OK' }));
+      } catch (initErr: any) {
+        console.warn('[Pi SDK] Avertissement Pi.init():', initErr);
+        hasInitializedRef.current = true;
+      }
+    }
 
     try {
-      console.log('[Pi SDK] Déclenchement de Pi.authenticate()...');
+      console.log('[Pi SDK] Appel de Pi.authenticate([username, payments])...');
       const auth = await window.Pi.authenticate(['username', 'payments'], handleIncompletePayment);
 
       console.log('[Pi SDK] Réponse reçue de Pi.authenticate():', auth);
@@ -178,7 +156,7 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
         throw new Error("Données utilisateur incomplètes ou autorisation rejetée.");
       }
 
-      // Synchronize with backend API
+      // Verify token with backend /api/pi/authenticate
       const res = await fetch('/api/pi/authenticate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +187,7 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
       }));
 
       setAuthStatus('AUTHENTICATED');
-      console.log('[Pi SDK] Utilisateur authentifié avec succès:', data.user.username);
+      console.log('[Pi SDK] Authentification réussie pour:', data.user.username);
     } catch (err: any) {
       console.error('[Pi SDK] Échec de Pi.authenticate():', err);
       const msg = err.message || 'Authentification refusée ou fermée par l’utilisateur.';
@@ -223,7 +201,7 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       isAuthenticatingRef.current = false;
     }
-  }, [handleIncompletePayment, initPi]);
+  }, [handleIncompletePayment]);
 
   const simulateSandboxLogin = async (customUsername = 'Pioneer_Tester', asSeller = false) => {
     try {
@@ -311,10 +289,12 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Step 1: Detect environment & check cached session
+  // Robust, single-mount initialization and auth sequence
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let cancelled = false;
+    let attempts = 0;
     const ua = navigator.userAgent || '';
     const inPiBrowser = /pibrowser/i.test(ua);
     setIsPiBrowser(inPiBrowser);
@@ -325,63 +305,67 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
       userAgent: ua,
     }));
 
-    try {
-      const savedUser = localStorage.getItem(DEMO_USER_STORAGE_KEY);
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.username) {
-          setUser(parsed);
-          setAuthStatus('AUTHENTICATED');
+    const waitForPi = async () => {
+      // Poll for window.Pi presence (up to 50 attempts * 100ms = 5 seconds)
+      while (!cancelled && !window.Pi && attempts < 50) {
+        attempts++;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (cancelled) return;
+
+      if (!window.Pi) {
+        console.log('[Pi SDK] window.Pi non détecté après attente.');
+        setAuthStatus('SDK_UNAVAILABLE');
+        setDiagnostics((prev) => ({
+          ...prev,
+          sdkDetected: false,
+          errorMessage: inPiBrowser
+            ? "Pi SDK en attente d'injection par Pi Browser."
+            : "Pi Browser / Pi SDK non disponible sur ce navigateur.",
+        }));
+        return;
+      }
+
+      try {
+        setDiagnostics((prev) => ({
+          ...prev,
+          sdkDetected: true,
+        }));
+
+        if (!hasInitializedRef.current) {
+          console.log('[Pi SDK] Initialisation window.Pi.init({ version: 2.0, sandbox:', IS_SANDBOX, '})');
+          window.Pi.init({
+            version: '2.0',
+            sandbox: IS_SANDBOX,
+          });
+
+          hasInitializedRef.current = true;
+
           setDiagnostics((prev) => ({
             ...prev,
-            username: parsed.username,
-            authStatus: 'SUCCESS',
+            sdkDetected: true,
+            initStatus: 'OK',
           }));
         }
-      }
-    } catch (e) {
-      console.warn('LocalStorage read error:', e);
-    }
-  }, []);
 
-  // Step 2: Poll for window.Pi presence and trigger auto-init / auto-auth once
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    let attempts = 0;
-    const maxAttempts = 30; // 30 * 150ms = 4.5 seconds max polling
-    const interval = setInterval(() => {
-      attempts++;
-
-      if (window.Pi) {
-        clearInterval(interval);
-        setDiagnostics((prev) => ({ ...prev, sdkDetected: true }));
-
-        const initSuccess = initPi();
-        if (initSuccess) {
-          // If not authenticated and auto attempt has not happened yet, launch authenticate()
-          if (!hasAutoAttemptedRef.current && authStatus !== 'AUTHENTICATED') {
-            hasAutoAttemptedRef.current = true;
-            authenticate();
-          } else if (authStatus !== 'AUTHENTICATED') {
-            setAuthStatus('SDK_READY');
-          }
+        if (!hasAutoAttemptedRef.current) {
+          hasAutoAttemptedRef.current = true;
+          await authenticate();
         }
-      } else if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        if (authStatus === 'SDK_LOADING') {
-          setDiagnostics((prev) => ({
-            ...prev,
-            sdkDetected: false,
-            errorMessage: 'Pi SDK non détecté après le délai imparti.',
-          }));
-          setAuthStatus('SDK_UNAVAILABLE');
-        }
+      } catch (error: any) {
+        console.error('[Pi SDK] Initialisation/authentification automatique:', error);
+        setError(error?.message || 'Impossible de démarrer l’authentification Pi.');
+        setAuthStatus('AUTH_FAILED');
       }
-    }, 150);
+    };
 
-    return () => clearInterval(interval);
-  }, [authStatus, authenticate, initPi]);
+    waitForPi();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticate]);
 
   const loading = authStatus === 'SDK_LOADING' || authStatus === 'AUTHENTICATING';
 
@@ -411,4 +395,5 @@ export const PiProvider = ({ children }: { children: React.ReactNode }) => {
 };
 
 export const usePi = () => useContext(PiContext);
+
 

@@ -39,3 +39,18 @@ export async function completePiPayment(paymentId: string, txid: string): Promis
   if (!res.ok) throw new Error(`Erreur complétion (${res.status})`);
   return res.json();
 }
+
+export async function verifyPiUserToken(accessToken: string): Promise<{ uid: string; username: string; roles?: string[] }> {
+  const res = await fetch(`${PI_API_URL}/me`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: 'no-store',
+  });
+
+  if (!res.ok) {
+    const errorBody = await res.text().catch(() => '');
+    throw new Error(`Échec de validation du token Pi (/v2/me: ${res.status}) ${errorBody}`);
+  }
+
+  return res.json();
+}
