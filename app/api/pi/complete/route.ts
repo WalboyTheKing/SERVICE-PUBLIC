@@ -22,6 +22,7 @@ export async function POST(req: Request) {
 
     console.log(`[PI COMPLETE] Envoi complétion pour paymentId: ${paymentId}, txid: ${txid}`);
 
+    // Finalisation auprès de l'API Pi
     const response = await fetch(`https://api.minepi.com/v2/payments/${paymentId}/complete`, {
       method: 'POST',
       headers: {
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
       return NextResponse.json(data, { status: response.status });
     }
 
+    // Mise à jour du statut vendeur dans la base de données
     try {
       const userUid = data?.user_uid;
       const metadata = data?.metadata;
